@@ -1,21 +1,22 @@
 ### Overview & Purpose
 
-People frequently receive suspicious links via SMS or email and lack an easy, safe way to check them before clicking. SentinelLink inspects domain registration age, SSL certificates, DNS records, and brand spoofing patterns to give you a clear Safe or High Risk verdict. It translates complex security telemetry into plain English with practical steps anyone can follow.
+People frequently receive suspicious links via SMS or email and lack an easy, safe way to check them before clicking. SentinelLink inspects lexical URL structure, Shannon entropy, Punycode/Cyrillic homoglyphs, DOM password forms, domain registration age, and public threat feeds (URLhaus & PhishTank). It calculates a transparent composite risk score from 0 to 100 with clear defensive recommendations.
 
 ### Key Features
 
-- **Smart Message & Link Extraction:** Paste a raw web address or an entire SMS text message; SentinelLink automatically isolates the target link while stripping surrounding punctuation.
-- **Real-Time OSINT Telemetry:** Queries RDAP domain registry age, verifies SSL/TLS certificate validity, and checks DNS A, AAAA, MX, and NS records.
-- **Brand Impersonation & Homograph Checks:** Identifies lookalike domains, deceptive subdomain prefixes (e.g. `usps.com.fake-parcel.top`), and unauthorized brand claims.
-- **Redirect Tracing & Unshortening:** Follows HTTP 301/302 hops to reveal the true final landing destination hidden behind shorteners like bit.ly or tinyurl.
-- **Action Checklist & Exportable Reports:** Provides step-by-step guidance on what to do if you received or opened the link, plus a one-click text report to share with IT or family.
+- **Shannon Entropy & Lexical Structure:** Computes algorithmic character randomness (identifying DGA domains), counts subdomain stacking, flags numeric IP hostnames, and monitors high-abuse top-level extensions (.zip, .top, etc.).
+- **Homoglyph & Typosquatting Engine:** Detects Punycode (`xn--`), mixed Cyrillic/Greek character mimicry, and Levenshtein edit distance against top brands (PayPal, Chase, Google, Apple, Amazon, USPS, etc.).
+- **DOM & Form Security Analysis:** Scans page HTML for unencrypted password fields (`<input type="password">` over HTTP), hidden iframes, and off-domain form actions.
+- **OSINT & Network Telemetry:** Inspects RDAP domain age, verifies authoritative DNS A/AAAA, MX, and SPF anti-spoofing records, and audits SSL/TLS certificate validity.
+- **Threat Intelligence Matching:** Queries community threat feeds (abuse.ch URLhaus & PhishTank) to flag verified malware distributors and active phishing campaigns.
+- **Composite 3-Tier Risk Score (0-100):** Transparent scoring categorized into Low Risk / Safe (0-29), Suspicious (30-59), and Malicious / High Phishing Risk (60-100) with a detailed point breakdown.
 
 ### Tech Stack
 
 - **Frontend:** React 19, TypeScript, Tailwind CSS v4, Lucide React
 - **Backend Server:** Node.js, Express, TSX, Vite (integrated middleware mode)
-- **OSINT & Network Analysis:** Native Node.js `dns`, `tls`, `net`, RDAP domain registry API, HTTP redirect tracing
-- **AI Threat Synthesis:** Google Gen AI SDK (`@google/genai` / Gemini 2.5 Flash) with automated offline heuristic fallback
+- **Heuristic Engine:** Deterministic rule modules (Lexical, Homoglyph, DOM, Threat Intel, Scoring Engine)
+- **OSINT & Network:** Native Node.js `dns`, `tls`, `net`, RDAP domain registry API, and HTTP redirect tracer
 
 ### How to Run Locally
 
@@ -27,17 +28,10 @@ People frequently receive suspicious links via SMS or email and lack an easy, sa
    npm install
    ```
 
-3. **Configure Environment Variables (Optional):**
-   Copy the example environment file:
-   ```bash
-   cp .env.example .env
-   ```
-   Add your `GEMINI_API_KEY` if you want AI-assisted threat summaries. If left blank, the scanner will still run normally using its built-in heuristic analysis engine.
-
-4. **Start the Development Server:**
+3. **Start the Development Server:**
    ```bash
    npm run dev
    ```
 
-5. **Open in Your Browser:**
+4. **Open in Your Browser:**
    Visit [http://localhost:3000](http://localhost:3000) to start inspecting links.

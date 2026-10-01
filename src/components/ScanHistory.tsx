@@ -50,9 +50,10 @@ export const ScanHistory: React.FC<ScanHistoryProps> = ({
 
       <div className="space-y-2.5">
         {history.map((scan) => {
-          const isHigh = scan.riskLevel === 'HIGH_RISK';
+          const isMalicious =
+            scan.riskLevel === 'MALICIOUS' || (scan.riskLevel as string) === 'HIGH_RISK';
           const isSuspicious = scan.riskLevel === 'SUSPICIOUS';
-          const isSafe = scan.riskLevel === 'SAFE' || scan.riskLevel === 'LOW_RISK';
+          const isSafe = scan.riskLevel === 'SAFE' || (scan.riskLevel as string) === 'LOW_RISK';
 
           return (
             <div
@@ -64,10 +65,10 @@ export const ScanHistory: React.FC<ScanHistoryProps> = ({
                 onClick={() => onSelectScan(scan)}
               >
                 <div className="flex items-center gap-2 mb-1">
-                  {isHigh ? (
+                  {isMalicious ? (
                     <span className="flex items-center gap-1 text-[11px] font-mono font-bold text-rose-400 uppercase">
                       <AlertOctagon className="h-3.5 w-3.5" />
-                      <span>High Risk ({scan.riskScore}/100)</span>
+                      <span>Malicious ({scan.riskScore}/100)</span>
                     </span>
                   ) : isSuspicious ? (
                     <span className="flex items-center gap-1 text-[11px] font-mono font-bold text-amber-400 uppercase">
@@ -77,7 +78,7 @@ export const ScanHistory: React.FC<ScanHistoryProps> = ({
                   ) : (
                     <span className="flex items-center gap-1 text-[11px] font-mono font-bold text-emerald-400 uppercase">
                       <ShieldCheck className="h-3.5 w-3.5" />
-                      <span>Safe ({scan.riskScore}/100)</span>
+                      <span>Low Risk / Safe ({scan.riskScore}/100)</span>
                     </span>
                   )}
                   <span className="text-slate-600">·</span>

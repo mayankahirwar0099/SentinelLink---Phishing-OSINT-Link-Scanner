@@ -5,16 +5,8 @@ import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import {
   extractUrlFromInput,
-  getApexDomain,
-  detectBrandImpersonation,
-  inspectDns,
-  inspectRdap,
-  inspectSsl,
-  traceRedirects,
-  evaluateIndicators,
+  performFullSecurityScan,
 } from './src/services/scanner.js';
-import { analyzeThreatWithGemini } from './src/services/aiAnalyzer.js';
-import type { ScanResult } from './src/types/scanner.js';
 
 dotenv.config();
 
@@ -27,63 +19,54 @@ async function startServer() {
 
   app.use(express.json({ limit: '2mb' }));
 
-  // Quick Samples for instant 1-click testing
+  // Quick Samples for instant 1-click testing (Safe, Typosquat, High Risk)
   app.get('/api/quick-samples', (_req, res) => {
     res.json([
       {
-        id: 'sample-usps-smishing',
-        category: 'SMS Package Scam (Smishing)',
-        riskExpectation: 'HIGH_RISK',
-        label: 'USPS Delivery Fee SMS',
+        id: 'sample-safe-github',
+        category: 'Safe Official Platform',
+        riskExpectation: 'SAFE',
+        label: 'GitHub Documentation (Safe)',
+        rawText: 'Official GitHub documentation on authentication: https://docs.github.com/en/authentication',
+        url: 'https://docs.github.com/en/authentication',
+      },
+      {
+        id: 'sample-typosquat-paypal',
+        category: 'Typosquatting & Homoglyph',
+        riskExpectation: 'MALICIOUS',
+        label: 'PayPa1 Account Spoof (Typosquat)',
+        rawText: 'PayPal Alert: Unusual sign-in detected on your account. Verify identity at https://paypa1-security-verification.com/login immediately.',
+        url: 'https://paypa1-security-verification.com/login',
+      },
+      {
+        id: 'sample-highrisk-usps',
+        category: 'SMS Package Scam (High Risk)',
+        riskExpectation: 'MALICIOUS',
+        label: 'USPS Redelivery Smish (High Risk)',
         rawText: 'USPS Notice: Your parcel #94001000 is on hold due to missing house number. Confirm address and pay $0.35 redelivery fee at https://usps-redelivery-notice.top/track within 24h to avoid return.',
         url: 'https://usps-redelivery-notice.top/track',
       },
       {
-        id: 'sample-netflix-phish',
-        category: 'Streaming Account Suspension',
-        riskExpectation: 'HIGH_RISK',
-        label: 'Netflix Account Hold',
-        rawText: 'Netflix: Your membership payment failed. Update your card now to continue streaming: https://netflix-update-billing-profile.xyz/login',
-        url: 'https://netflix-update-billing-profile.xyz/login',
+        id: 'sample-typosquat-chase',
+        category: 'Banking Combosquatting',
+        riskExpectation: 'MALICIOUS',
+        label: 'Chase Security Phish (Combosquat)',
+        rawText: 'CHASE Alert: A debit charge of $850.00 was requested. Cancel transfer at https://chase-security-verification.xyz/auth',
+        url: 'https://chase-security-verification.xyz/auth',
       },
       {
-        id: 'sample-bofa-phish',
-        category: 'Urgent Banking Alert',
-        riskExpectation: 'HIGH_RISK',
-        label: 'Bank of America Security Alert',
-        rawText: 'BOA Alert: An unauthorized withdrawal of $450.00 was requested. If this was not you, verify immediately: https://bankofamerica.com.login-verify-alert.click/auth',
-        url: 'https://bankofamerica.com.login-verify-alert.click/auth',
-      },
-      {
-        id: 'sample-apple-smishing',
-        category: 'iCloud Find My Alert',
-        riskExpectation: 'HIGH_RISK',
-        label: 'Apple iCloud Lost Device',
-        rawText: 'Apple Support: Your lost iPhone 15 Pro was located online at 04:12 AM. View location & passcode lock: https://icloud-find-device-security.club/map',
-        url: 'https://icloud-find-device-security.club/map',
-      },
-      {
-        id: 'sample-legit-wiki',
-        category: 'Legitimate Resource',
+        id: 'sample-safe-wiki',
+        category: 'Safe Educational',
         riskExpectation: 'SAFE',
-        label: 'Wikipedia Security Guide',
-        rawText: 'Read educational guide on social engineering: https://en.wikipedia.org/wiki/Phishing',
+        label: 'Wikipedia Article (Safe)',
+        rawText: 'Read about phishing defense: https://en.wikipedia.org/wiki/Phishing',
         url: 'https://en.wikipedia.org/wiki/Phishing',
-      },
-      {
-        id: 'sample-legit-github',
-        category: 'Legitimate Developer Platform',
-        riskExpectation: 'SAFE',
-        label: 'GitHub Documentation',
-        rawText: 'Official GitHub documentation: https://docs.github.com/en/authentication',
-        url: 'https://docs.github.com/en/authentication',
       },
     ]);
   });
 
-  // Main OSINT & Phishing Scan Endpoint
+  // Main Deterministic OSINT & Heuristic Scan Endpoint
   app.post('/api/scan', async (req, res) => {
-    const startTime = Date.now();
     try {
       const { input } = req.body;
       if (!input || typeof input !== 'string') {
@@ -108,74 +91,13 @@ async function startServer() {
         return;
       }
 
-      const targetDomain = parsedUrl.hostname;
-      const apexDomain = getApexDomain(targetDomain);
-
-      // Concurrent OSINT Inspections
-      const [dnsResult, sslResult, rdapResult, redirectResult] = await Promise.all([
-        inspectDns(targetDomain),
-        inspectSsl(targetDomain, parsedUrl.port ? Number(parsedUrl.port) : 443),
-        inspectRdap(apexDomain),
-        traceRedirects(extractedUrl, 5),
-      ]);
-
-      // Brand impersonation check (evaluating URL and message context)
-      const brandCheck = detectBrandImpersonation(parsedUrl, smsMessageContext);
-
-      // Evaluate heuristic indicators
-      let finalUrlObj = parsedUrl;
-      try {
-        finalUrlObj = new URL(redirectResult.finalUrl);
-      } catch {
-        // Fallback to initial
-      }
-
-      const { indicators, computedScore } = evaluateIndicators({
-        urlObj: parsedUrl,
-        finalUrlObj,
+      // Execute modular analysis pipeline
+      const scanResult = await performFullSecurityScan({
         rawInput: input,
-        dns: dnsResult,
-        ssl: sslResult,
-        rdap: rdapResult,
-        brandCheck,
-        hopsCount: redirectResult.hops.length,
-      });
-
-      // Gemini AI Threat Synthesis
-      const aiAnalysis = await analyzeThreatWithGemini({
-        url: extractedUrl,
-        domain: targetDomain,
-        apexDomain,
-        smsContext: smsMessageContext,
-        baselineScore: computedScore,
-        dns: dnsResult,
-        ssl: sslResult,
-        rdap: rdapResult,
-        brandCheck,
-        indicators,
-      });
-
-      const scanResult: ScanResult = {
-        id: `scan-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-        timestamp: new Date().toISOString(),
-        originalInput: input,
         extractedUrl,
-        smsMessageContext,
-        normalizedUrl: parsedUrl.toString(),
-        targetDomain,
-        apexDomain,
-        finalUrl: redirectResult.finalUrl,
-        riskLevel: aiAnalysis.verdict,
-        riskScore: aiAnalysis.riskScore,
-        aiAnalysis,
-        redirects: redirectResult.hops,
-        dns: dnsResult,
-        ssl: sslResult,
-        rdap: rdapResult,
-        brandCheck,
-        indicators,
-        executionTimeMs: Date.now() - startTime,
-      };
+        smsContext: smsMessageContext,
+        parsedUrl,
+      });
 
       res.json(scanResult);
     } catch (err: unknown) {
@@ -190,8 +112,8 @@ async function startServer() {
   app.get('/api/health', (_req, res) => {
     res.json({
       status: 'operational',
-      engine: 'SentinelLink OSINT Micro-Service',
-      hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
+      engine: 'SentinelLink Deterministic OSINT & Heuristic Engine',
+      hasGemini: false,
       timestamp: new Date().toISOString(),
     });
   });
@@ -219,7 +141,7 @@ async function startServer() {
   });
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`SentinelLink security micro-service running on http://0.0.0.0:${PORT}`);
+    console.log(`SentinelLink OSINT heuristic engine running on http://0.0.0.0:${PORT}`);
   });
 }
 

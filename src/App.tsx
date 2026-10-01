@@ -8,9 +8,9 @@ import { SmishingGuide } from './components/SmishingGuide.js';
 import { ScanHistory } from './components/ScanHistory.js';
 import { ReportModal } from './components/ReportModal.js';
 import type { ScanResult } from './types/scanner.js';
-import { Shield, Sparkles, AlertTriangle, ShieldCheck, ArrowRight } from 'lucide-react';
+import { AlertTriangle, ShieldCheck, Binary, Sparkles } from 'lucide-react';
 
-const STORAGE_KEY = 'sentinellink_scan_history_v1';
+const STORAGE_KEY = 'sentinellink_scan_history_v2';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'scanner' | 'guide' | 'history'>('scanner');
@@ -34,7 +34,7 @@ export default function App() {
     }
   }, []);
 
-  // Fetch quick test samples from backend
+  // Fetch quick test samples from backend (Safe, Typosquat, High Risk)
   useEffect(() => {
     fetch('/api/quick-samples')
       .then((res) => (res.ok ? res.json() : []))
@@ -47,30 +47,31 @@ export default function App() {
         // Fallback samples
         setQuickSamples([
           {
-            id: 'sample-usps',
-            category: 'SMS Package Scam',
-            riskExpectation: 'HIGH_RISK',
-            label: 'USPS Delivery Fee SMS',
-            rawText:
-              'USPS Notice: Your parcel #94001000 is on hold due to missing address. Confirm address and pay $0.35 redelivery fee at https://usps-redelivery-notice.top/track within 24h to avoid return.',
-            url: 'https://usps-redelivery-notice.top/track',
-          },
-          {
-            id: 'sample-netflix',
-            category: 'Streaming Phish',
-            riskExpectation: 'HIGH_RISK',
-            label: 'Netflix Account Hold',
-            rawText:
-              'Netflix: Your membership payment failed. Update card to continue streaming: https://netflix-update-billing-profile.xyz/login',
-            url: 'https://netflix-update-billing-profile.xyz/login',
-          },
-          {
-            id: 'sample-wiki',
-            category: 'Legitimate Service',
+            id: 'sample-safe',
+            category: 'Safe Official Platform',
             riskExpectation: 'SAFE',
-            label: 'Wikipedia Article',
-            rawText: 'Learn about phishing on Wikipedia: https://en.wikipedia.org/wiki/Phishing',
-            url: 'https://en.wikipedia.org/wiki/Phishing',
+            label: 'GitHub Documentation (Safe)',
+            rawText:
+              'Official GitHub documentation: https://docs.github.com/en/authentication',
+            url: 'https://docs.github.com/en/authentication',
+          },
+          {
+            id: 'sample-typosquat',
+            category: 'Typosquatting & Homoglyph',
+            riskExpectation: 'MALICIOUS',
+            label: 'PayPa1 Account Spoof (Typosquat)',
+            rawText:
+              'PayPal Alert: Unusual sign-in detected on your account. Verify identity at https://paypa1-security-verification.com/login immediately.',
+            url: 'https://paypa1-security-verification.com/login',
+          },
+          {
+            id: 'sample-highrisk',
+            category: 'SMS Package Scam',
+            riskExpectation: 'MALICIOUS',
+            label: 'USPS Redelivery Smish (High Risk)',
+            rawText:
+              'USPS Notice: Your parcel #94001000 is on hold due to missing address. Confirm address and pay $0.35 redelivery fee at https://usps-redelivery-notice.top/track within 24h.',
+            url: 'https://usps-redelivery-notice.top/track',
           },
         ]);
       });
@@ -163,9 +164,9 @@ export default function App() {
         <div className="mb-10 text-center max-w-3xl mx-auto">
           <div className="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/80 px-4 py-1.5 text-xs text-slate-300 mb-4 backdrop-blur-sm">
             <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-            <span>Automated OSINT & Smishing Verification Engine</span>
+            <span>Deterministic Heuristics · Shannon Entropy · Homoglyphs · DOM Forms</span>
             <span className="text-slate-600">/</span>
-            <span className="text-amber-400 font-mono font-medium">Domain Age · SSL · RDAP</span>
+            <span className="text-amber-400 font-mono font-medium">0-100 Scoring</span>
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-white text-balance leading-tight sm:leading-tight">
@@ -176,7 +177,7 @@ export default function App() {
           </h1>
 
           <p className="mt-4 text-sm sm:text-base text-slate-400 text-balance leading-relaxed">
-            People constantly receive suspicious links via SMS or email and lack the technical skills to verify them safely. SentinelLink inspects domain age, SSL integrity, redirection chains, and deceptive brand spoofing to give you a definitive Safe or High Risk verdict.
+            SentinelLink analyzes URLs using Shannon entropy, Punycode/Cyrillic homoglyphs, DOM form inspection, RDAP registration age, and threat intelligence feeds to compute a transparent composite risk score.
           </p>
         </div>
 
@@ -210,7 +211,7 @@ export default function App() {
             {/* Active Scan Results Display */}
             {currentResult && (
               <div className="space-y-8 animate-in fade-in duration-500">
-                {/* 1. Verdict Banner & Risk Score */}
+                {/* 1. Verdict Banner & Risk Score Meter */}
                 <VerdictHero
                   result={currentResult}
                   onOpenActionPlan={() => {
@@ -225,7 +226,7 @@ export default function App() {
                   <ActionChecklist result={currentResult} />
                 </div>
 
-                {/* 3. Deep-Dive OSINT Telemetry Suite */}
+                {/* 3. Breakdown Table & Deep-Dive OSINT Suite */}
                 <OsintInspector result={currentResult} />
               </div>
             )}
@@ -269,17 +270,17 @@ export default function App() {
         />
       )}
 
-      {/* Footer (Anti-Slop Restraint: quiet copyright & disclaimer) */}
-      <footer className="mt-16 border-t border-slate-900 bg-slate-950 py-8 text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+      {/* Footer */}
+      <footer className="border-t border-slate-900 bg-slate-950 py-6 text-center text-xs text-slate-400">
+        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <span className="font-bold text-slate-400">SentinelLink</span>
-            <span>·</span>
-            <span>Automated OSINT Phishing Defense</span>
+            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            <span className="text-slate-300 font-medium">SentinelLink OSINT Engine</span>
+            <span>· Local Deterministic Heuristics</span>
           </div>
-          <p className="text-center sm:text-right text-[11px] text-slate-600 max-w-md">
-            Heuristic security analysis engine for proactive verification. Never input credentials or personal data on unverified websites.
-          </p>
+          <div className="text-[11px] text-slate-400 font-mono">
+            Shannon Entropy · Levenshtein Distance · DOM Security · URLhaus Feeds
+          </div>
         </div>
       </footer>
     </div>
