@@ -1,0 +1,6 @@
+{
+  "name": "SentinelLink - Phishing & OSINT Link Scanner",
+  "description": "Automated security scanner for suspicious SMS and email links with real-time OSINT, domain age checks, SSL auditing, redirect tracing, and plain-English threat verdicts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
