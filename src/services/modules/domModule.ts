@@ -206,6 +206,16 @@ export function analyzeDomAndForms(params: {
       points: 10,
       passed: false,
     });
+  } else {
+    indicators.push({
+      id: 'dom-no-credentials',
+      module: 'DOM',
+      title: 'No Credential Harvesting Inputs',
+      description: 'DOM inspection did not detect password entry elements or deceptive credential harvesting fields.',
+      severity: 'INFO',
+      points: 0,
+      passed: true,
+    });
   }
 
   // Hidden Iframe Indicator
@@ -241,6 +251,16 @@ export function analyzeDomAndForms(params: {
       severity: 'HIGH',
       points: 30,
       passed: false,
+    });
+  } else {
+    indicators.push({
+      id: 'dom-form-actions-clean',
+      module: 'DOM',
+      title: 'Standard Form Submission Targets',
+      description: 'Any forms detected submit data within the domain perimeter or use standard relative endpoints.',
+      severity: 'INFO',
+      points: 0,
+      passed: true,
     });
   }
 

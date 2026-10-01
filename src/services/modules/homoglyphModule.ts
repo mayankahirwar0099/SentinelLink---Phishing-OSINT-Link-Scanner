@@ -1,3 +1,4 @@
+import url from 'url';
 import type { HomoglyphAnalysis, HeuristicIndicator } from '../../types/scanner.js';
 import { getApexDomain } from '../../utils/urlHelper.js';
 
@@ -92,20 +93,35 @@ export function analyzeHomoglyphsAndTypos(urlObj: URL, smsContext?: string): {
   const fullPathAndHost = (urlObj.hostname + urlObj.pathname + urlObj.search).toLowerCase();
   const contextLower = (smsContext || '').toLowerCase();
 
+  // Punycode detection and Unicode resolution
   const isPunycode = hostname.startsWith('xn--') || hostname.includes('.xn--');
   let decodedPunycode: string | undefined;
+  try {
+    const unicodeHost = url.domainToUnicode(hostname);
+    if (unicodeHost !== hostname) {
+      decodedPunycode = unicodeHost;
+    }
+  } catch {
+    // Ignore decode error
+  }
+
+  // The string to check for confusables (either raw hostname or decoded punycode)
+  const targetCheckStr = decodedPunycode || hostname;
 
   // Mixed scripts / Confusables detection
   const confusableCharacters: string[] = [];
+  let normalizedFromConfusables = targetCheckStr;
+
   for (const [confusable, latin] of Object.entries(CONFUSABLE_MAP)) {
-    if (hostname.includes(confusable)) {
+    if (targetCheckStr.includes(confusable)) {
       confusableCharacters.push(`${confusable} (mimicking '${latin}')`);
+      normalizedFromConfusables = normalizedFromConfusables.replaceAll(confusable, latin);
     }
   }
   const hasMixedScript = confusableCharacters.length > 0;
 
   // Leetspeak normalization
-  const normalizedLeet = hostname
+  const normalizedLeet = normalizedFromConfusables
     .replace(/0/g, 'o')
     .replace(/1/g, 'l')
     .replace(/5/g, 's')
@@ -129,7 +145,19 @@ export function analyzeHomoglyphsAndTypos(urlObj: URL, smsContext?: string): {
       continue;
     }
 
-    // 1. Levenshtein Distance Check on Apex root
+    // 1. Check if Homoglyph Confusables decoding exactly spells the brand!
+    // (e.g. gооgle.com with Cyrillic 'о' decoded -> google)
+    const normalizedApexOnly = normalizedFromConfusables.split('.')[0].replace(/^xn--/, '');
+    if (hasMixedScript && normalizedApexOnly === item.canonicalSlug) {
+      isTyposquat = true;
+      matchedBrand = item.brand;
+      officialDomain = item.officialDomains[0];
+      typosquatDetails = `Visual Homoglyph Attack: Host uses Cyrillic/Greek characters that visually disguise "${item.brand}" (spoofs authentic ${item.officialDomains[0]}).`;
+      minLevenshtein = 0;
+      break;
+    }
+
+    // 2. Levenshtein Distance Check on Apex root
     const dist = calculateLevenshteinDistance(apexNameOnly, item.canonicalSlug);
     if (dist > 0 && dist <= 2 && apexNameOnly.length >= 4 && item.canonicalSlug.length >= 4) {
       if (dist < minLevenshtein) {
@@ -141,7 +169,7 @@ export function analyzeHomoglyphsAndTypos(urlObj: URL, smsContext?: string): {
       }
     }
 
-    // 2. Leetspeak substitution check (e.g. paypa1 vs paypal)
+    // 3. Leetspeak substitution check (e.g. paypa1 vs paypal)
     if (!isTyposquat && normalizedLeet.includes(item.canonicalSlug) && !hostname.includes(item.canonicalSlug)) {
       isTyposquat = true;
       matchedBrand = item.brand;
@@ -149,7 +177,7 @@ export function analyzeHomoglyphsAndTypos(urlObj: URL, smsContext?: string): {
       typosquatDetails = `Leetspeak character substitution imitating ${item.brand} (mimics ${item.officialDomains[0]}).`;
     }
 
-    // 3. Combosquatting check (e.g. paypal-security-update.com or chase-login-portal.xyz)
+    // 4. Combosquatting check (e.g. paypal-security-update.com or chase-login-portal.xyz)
     if (!isTyposquat && apexNameOnly.includes(item.canonicalSlug)) {
       const hasActionKeyword = phishingActionKeywords.some((kw) => fullPathAndHost.includes(kw) || apexNameOnly.includes(kw));
       if (hasActionKeyword) {
@@ -160,7 +188,7 @@ export function analyzeHomoglyphsAndTypos(urlObj: URL, smsContext?: string): {
       }
     }
 
-    // 4. SMS / Message pretext impersonation check
+    // 5. SMS / Message pretext impersonation check
     if (!isTyposquat && contextLower) {
       const mentionsBrand = item.keywords.some((kw) => contextLower.includes(kw));
       if (mentionsBrand) {
@@ -192,7 +220,9 @@ export function analyzeHomoglyphsAndTypos(urlObj: URL, smsContext?: string): {
       id: 'homoglyph-punycode',
       module: 'HOMOGLYPH',
       title: 'Internationalized Domain Name (Punycode xn--)',
-      description: 'Host utilizes Punycode encoding, a mechanism historically exploited to display non-Latin letters that visually duplicate familiar ASCII domains.',
+      description: decodedPunycode
+        ? `Host utilizes Punycode encoding (decodes to "${decodedPunycode}"). Historically exploited to display non-Latin letters that visually duplicate familiar ASCII domains.`
+        : 'Host utilizes Punycode encoding, a mechanism historically exploited to display non-Latin letters that visually duplicate familiar ASCII domains.',
       severity: 'CRITICAL',
       points: 35,
       passed: false,

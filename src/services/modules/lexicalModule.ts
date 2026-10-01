@@ -39,19 +39,19 @@ export function analyzeLexicalStructure(urlObj: URL): {
   const search = urlObj.search.toLowerCase();
   const fullUrl = urlObj.href;
 
-  const apex = getApexDomain(hostname);
-  const parts = hostname.split('.');
-  const tld = apex.split('.').pop() || '';
-  const isAbuseTld = HIGH_ABUSE_TLDS.has(tld);
-
   // Raw IPv4 or IPv6 detection
   const isIpv4 = /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname.split(':')[0]);
   const isIpv6 = hostname.startsWith('[') || (hostname.includes(':') && !hostname.includes('.'));
   const hasRawIp = isIpv4 || isIpv6;
 
+  const apex = hasRawIp ? hostname : getApexDomain(hostname);
+  const parts = hostname.split('.');
+  const tld = hasRawIp ? 'N/A' : (apex.split('.').pop() || '');
+  const isAbuseTld = !hasRawIp && HIGH_ABUSE_TLDS.has(tld);
+
   // Subdomain calculation (excluding apex domain parts)
   const apexParts = apex.split('.');
-  const subdomains = parts.slice(0, Math.max(0, parts.length - apexParts.length));
+  const subdomains = hasRawIp ? [] : parts.slice(0, Math.max(0, parts.length - apexParts.length));
   const subdomainCount = subdomains.length;
 
   // Shannon Entropy
@@ -100,29 +100,29 @@ export function analyzeLexicalStructure(urlObj: URL): {
       points: 0,
       passed: true,
     });
-  }
 
-  // 2. High-Abuse TLD Check
-  if (isAbuseTld) {
-    indicators.push({
-      id: 'lex-abuse-tld',
-      module: 'LEXICAL',
-      title: `High-Risk Top-Level Domain (.${tld})`,
-      description: `The .${tld} top-level extension has elevated historical abuse rates for fraudulent landing pages and malware hosting.`,
-      severity: 'HIGH',
-      points: 20,
-      passed: false,
-    });
-  } else {
-    indicators.push({
-      id: 'lex-abuse-tld',
-      module: 'LEXICAL',
-      title: `Reputable Top-Level Domain (.${tld})`,
-      description: `Domain extension .${tld} is not flagged on the high-abuse TLD watch list.`,
-      severity: 'INFO',
-      points: 0,
-      passed: true,
-    });
+    // 2. High-Abuse TLD Check (only applies to registered domains)
+    if (isAbuseTld) {
+      indicators.push({
+        id: 'lex-abuse-tld',
+        module: 'LEXICAL',
+        title: `High-Risk Top-Level Domain (.${tld})`,
+        description: `The .${tld} top-level extension has elevated historical abuse rates for fraudulent landing pages and malware hosting.`,
+        severity: 'HIGH',
+        points: 20,
+        passed: false,
+      });
+    } else {
+      indicators.push({
+        id: 'lex-abuse-tld',
+        module: 'LEXICAL',
+        title: `Reputable Top-Level Domain (.${tld})`,
+        description: `Domain extension .${tld} is not flagged on the high-abuse TLD watch list.`,
+        severity: 'INFO',
+        points: 0,
+        passed: true,
+      });
+    }
   }
 
   // 3. Shannon Entropy Check
